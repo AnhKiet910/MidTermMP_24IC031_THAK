@@ -24,7 +24,6 @@ class AddUserActivity : ComponentActivity() {
         val isEditMode = updateId != null
 
         setContent {
-            // Khai báo các biến lưu trữ nội dung nhập vào
             var email by remember { mutableStateOf(intent.getStringExtra("USER_EMAIL") ?: "") }
             var password by remember { mutableStateOf("") }
             var role by remember { mutableStateOf(intent.getStringExtra("USER_ROLE") ?: "user") }
@@ -90,12 +89,19 @@ class AddUserActivity : ComponentActivity() {
 
                             isLoading = true
                             if (isEditMode) {
-                                // Logic Sửa (Chỉ cập nhật Firestore)
-                                // Bạn có thể thêm hàm update trong FirebaseService nếu cần
-                                Toast.makeText(this@AddUserActivity, "Tính năng sửa đang cập nhật", Toast.LENGTH_SHORT).show()
-                                finish()
+                                // Gọi service để cập nhật thông tin
+                                updateId?.let { id ->
+                                    service.updateUser(id, role, imageUrl) { success ->
+                                        isLoading = false
+                                        if (success) {
+                                            Toast.makeText(this@AddUserActivity, "Cập nhật thành công!", Toast.LENGTH_SHORT).show()
+                                            finish()
+                                        } else {
+                                            Toast.makeText(this@AddUserActivity, "Lỗi cập nhật!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
                             } else {
-                                // Logic Thêm: Gọi Service để lưu cả Auth lẫn Database
                                 service.addUserWithAuth(email, password, role, imageUrl) { success ->
                                     isLoading = false
                                     if (success) {
