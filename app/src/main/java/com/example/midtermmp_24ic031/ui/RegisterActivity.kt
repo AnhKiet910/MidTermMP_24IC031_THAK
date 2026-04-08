@@ -6,7 +6,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,19 +26,25 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.midtermmp_24ic031.R
+import com.example.midtermmp_24ic031.service.FirebaseService
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 
-class LoginActivity : ComponentActivity() {
+class RegisterActivity : ComponentActivity() {
+    private val service = FirebaseService()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             var email by remember { mutableStateOf("") }
             var password by remember { mutableStateOf("") }
-            var passwordVisible by remember { mutableStateOf(false) } // Trạng thái ẩn/hiện mật khẩu
+            var confirmPassword by remember { mutableStateOf("") }
+
+            // Trạng thái ẩn hiện cho 2 ô mật khẩu
+            var passwordVisible by remember { mutableStateOf(false) }
+            var confirmPasswordVisible by remember { mutableStateOf(false) }
             var isLoading by remember { mutableStateOf(false) }
 
-            // Thêm màu nền nhạt nhẹ phía sau để làm nổi bật Form Card
+            // Thêm màu nền nhạt đồng bộ với Login
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
@@ -58,19 +63,19 @@ class LoginActivity : ComponentActivity() {
                         painter = painterResource(id = R.drawable.logo_vku),
                         contentDescription = "VKU Logo",
                         modifier = Modifier
-                            .size(140.dp)
+                            .size(120.dp) // Nhỏ hơn màn hình login 1 xíu cho gọn
                             .padding(bottom = 16.dp)
                     )
 
                     Text(
-                        text = "QUẢN LÝ NHÂN SỰ",
+                        text = "ĐĂNG KÝ TÀI KHOẢN",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary
                     )
 
                     Text(
-                        text = "Vui lòng đăng nhập để tiếp tục",
+                        text = "Tạo tài khoản để tham gia hệ thống",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.Gray,
                         modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
@@ -90,33 +95,32 @@ class LoginActivity : ComponentActivity() {
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
 
-                            // Ô nhập Email có Icon
+                            // Ô Email
                             OutlinedTextField(
                                 value = email,
                                 onValueChange = { email = it },
                                 label = { Text("Email") },
                                 leadingIcon = {
-                                    Icon(Icons.Default.Email, contentDescription = "Email Icon", tint = MaterialTheme.colorScheme.primary)
+                                    Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp)
                             )
-
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // Ô nhập Mật khẩu có Icon và Nút con mắt
+                            // Ô Mật khẩu
                             OutlinedTextField(
                                 value = password,
                                 onValueChange = { password = it },
                                 label = { Text("Mật khẩu") },
                                 leadingIcon = {
-                                    Icon(Icons.Default.Lock, contentDescription = "Lock Icon", tint = MaterialTheme.colorScheme.primary)
+                                    Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 },
                                 trailingIcon = {
                                     val image = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
                                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                        Icon(image, contentDescription = if (passwordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu")
+                                        Icon(image, contentDescription = null)
                                     }
                                 },
                                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -124,7 +128,27 @@ class LoginActivity : ComponentActivity() {
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp)
                             )
+                            Spacer(modifier = Modifier.height(16.dp))
 
+                            // Ô Xác nhận Mật khẩu
+                            OutlinedTextField(
+                                value = confirmPassword,
+                                onValueChange = { confirmPassword = it },
+                                label = { Text("Xác nhận mật khẩu") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                },
+                                trailingIcon = {
+                                    val image = if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                                    IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
+                                        Icon(image, contentDescription = null)
+                                    }
+                                },
+                                visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
                             Spacer(modifier = Modifier.height(32.dp))
 
                             // --- NÚT BẤM VÀ LOADING ---
@@ -133,83 +157,57 @@ class LoginActivity : ComponentActivity() {
                             } else {
                                 Button(
                                     onClick = {
-                                        if (email.isEmpty() || password.isEmpty()) {
-                                            Toast.makeText(this@LoginActivity, "Vui lòng nhập đủ thông tin", Toast.LENGTH_SHORT).show()
+                                        if (email.isEmpty() || password.isEmpty() || confirmPassword.isEmpty()) {
+                                            Toast.makeText(this@RegisterActivity, "Vui lòng nhập đủ thông tin", Toast.LENGTH_SHORT).show()
+                                            return@Button
+                                        }
+                                        if (password != confirmPassword) {
+                                            Toast.makeText(this@RegisterActivity, "Mật khẩu không khớp", Toast.LENGTH_SHORT).show()
                                             return@Button
                                         }
 
                                         isLoading = true
-                                        FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password)
-                                            .addOnCompleteListener { task ->
-                                                if (task.isSuccessful) {
-                                                    fetchUserRoleAndNavigate(email) {
-                                                        isLoading = false
-                                                    }
-                                                } else {
-                                                    isLoading = false
-                                                    Toast.makeText(this@LoginActivity, "Sai tài khoản hoặc mật khẩu", Toast.LENGTH_SHORT).show()
+
+                                        // Logic tạo tài khoản giữ nguyên
+                                        service.addUserWithAuth(email, password, "user", "") { success ->
+                                            isLoading = false
+                                            if (success) {
+                                                Toast.makeText(this@RegisterActivity, "Đăng ký thành công!", Toast.LENGTH_SHORT).show()
+
+                                                val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+                                                val intent = Intent(this@RegisterActivity, UserProfileActivity::class.java).apply {
+                                                    putExtra("USER_ID", uid)
+                                                    putExtra("USER_EMAIL", email)
+                                                    putExtra("USER_ROLE", "user")
+                                                    putExtra("USER_IMAGE", "")
+                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                                                 }
+                                                startActivity(intent)
+                                                finish()
+                                            } else {
+                                                Toast.makeText(this@RegisterActivity, "Tài khoản này đã bị xóa hoặc vô hiệu hóa!", Toast.LENGTH_SHORT).show()
                                             }
+                                        }
                                     },
-                                    modifier = Modifier.fillMaxWidth().height(50.dp), // Nút bấm cao hơn một chút cho chuẩn UI/UX
+                                    modifier = Modifier.fillMaxWidth().height(50.dp),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Text("ĐĂNG NHẬP", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                    Text("ĐĂNG KÝ", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                                 }
                             }
                         }
                     }
 
-                    // --- PHẦN LIÊN KẾT BÊN DƯỚI CARD ---
+                    // --- LIÊN KẾT QUAY LẠI ---
                     Spacer(modifier = Modifier.height(24.dp))
-                    TextButton(onClick = {
-                        val intent = Intent(this@LoginActivity, RegisterActivity::class.java)
-                        startActivity(intent)
-                    }) {
+                    TextButton(onClick = { finish() }) {
                         Text(
-                            text = "Chưa có tài khoản? Đăng ký ngay",
+                            text = "Đã có tài khoản? Quay lại Đăng nhập",
                             fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
             }
         }
-    }
-
-    private fun fetchUserRoleAndNavigate(email: String, onFinished: () -> Unit) {
-        // ... (Giữ nguyên logic kiểm tra quyền của bạn)
-        FirebaseFirestore.getInstance().collection("users")
-            .whereEqualTo("email", email)
-            .get()
-            .addOnSuccessListener { docs ->
-                onFinished()
-
-                if (!docs.isEmpty) {
-                    val role = docs.documents[0].getString("role") ?: "user"
-                    val uid = docs.documents[0].id
-                    val imageUrl = docs.documents[0].getString("imageUrl") ?: ""
-
-                    val intent = if (role.lowercase() == "admin") {
-                        Intent(this, MainActivity::class.java)
-                    } else {
-                        Intent(this, UserProfileActivity::class.java)
-                    }
-
-                    intent.putExtra("USER_ID", uid)
-                    intent.putExtra("USER_EMAIL", email)
-                    intent.putExtra("USER_ROLE", role)
-                    intent.putExtra("USER_IMAGE", imageUrl)
-
-                    startActivity(intent)
-                    finish()
-                } else {
-                    FirebaseAuth.getInstance().signOut()
-                    Toast.makeText(this, "Tài khoản này đã bị xóa hoặc vô hiệu hóa!", Toast.LENGTH_LONG).show()
-                }
-            }
-            .addOnFailureListener {
-                onFinished()
-                Toast.makeText(this, "Lỗi kết nối cơ sở dữ liệu", Toast.LENGTH_SHORT).show()
-            }
     }
 }
